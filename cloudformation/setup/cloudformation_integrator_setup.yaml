@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create roles
+Parameters:
+  Env:
+    Type: String
+    Description: 'environment (uppercase only), ex: DEV, QAS, PRD'
+    AllowedValues:
+    - DEV
+    - QAS
+    - PRD
+  AppEnv:
+    Type: String
+    Description: 'application environment (lowercase only), ex: dev, qas, prd'
+    AllowedValues:
+    - dev
+    - qas
+    - prd
+Resources:
+  LambdaExecutionRoleRes:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ModelTemplate${Env}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+            - ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole

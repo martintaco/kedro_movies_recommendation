@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda Resources for Catalog Automation Integrator
+Parameters:
+    Env:
+        Type: String
+        Description: 'environment (uppercase only), ex: DEV, QAS, PRD'
+        AllowedValues:
+        - DEV
+        - QAS
+        - PRD
+    AppEnv:
+        Type: String
+        Description: 'application environment (lowercase only), ex: dev, qas, prd'
+        AllowedValues:
+        - dev
+        - qas
+        - prd
+    MLFlowHost:
+        Type: String
+        Description: S3 bucket for referenced templates
+        Default: internal-alb-datalake-casetwo-qas-XXXXX.us-east-1.elb.amazonaws.com
+    VPCSubnetIDsA:
+        Type: AWS::EC2::Subnet::Id
+        Description: The list of SubnetIds in your Virtual Private Cloud (VPC)
+    VPCSubnetIDsB:
+        Type: AWS::EC2::Subnet::Id
+        Description: The list of SubnetIds in your Virtual Private Cloud (VPC)
+    VPCSecurityGroupIDs:
+        Type: AWS::EC2::SecurityGroup::Id
+        Description: The list of SubnetIds in your Virtual Private Cloud (VPC)
+Resources:
+
+    TacticsECSCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: !Sub ecs-model-template-${AppEnv}
+            CapacityProviders:
+                - FARGATE
+    TacticsTaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            Family: !Sub task-model-template-${AppEnv}
+            ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole
+            RequiresCompatibilities:
+                - FARGATE
+            NetworkMode: awsvpc
+            TaskRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/ModleTemplateRole${Env}
+            Cpu: 2048
+            Memory: 8192
+            ContainerDefinitions:
+                - Name: CatalogAutomation
+                  LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-create-group: true
+                        awslogs-group: !Sub logs-model-template-${AppEnv}
+                        awslogs-region: !Sub ${AWS::Region}
+                        awslogs-stream-prefix: model-template
+                  Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/model-template/model-template:latest
+                  Environment:
+                  - Name: BUCKET_NAME
+                    Value: !Ref TemplateUploadsBucket
+                  - Name: PAPI_USER
+                    Value: !Ref PapiUser
+                  - Name: PAPI_PASSWORD
+                    Value: !Ref PapiPassword
+                  PortMappings:
+                  - HostPort: 80
+                    ContainerPort: 80

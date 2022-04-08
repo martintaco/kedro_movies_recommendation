@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template de despliegue para MLOPS Project
+Parameters:
+  AppEnv:
+    Type: String
+    Description: 'application environment (lowercase only), ex: dev, qas, prd'
+    AllowedValues:
+      - prd
+      - qas
+      - dev
+  Env:
+    Type: String
+    Description: 'application environment (uppercase only), ex: DEV, QAS, PRD'
+    AllowedValues:
+      - PRD
+      - QAS
+      - DEV
+  ProjectName:
+    Type: String
+    Description: Projects's name that will be used on Resources (lower case)
+    Default: XXXXXX
+  PrincipalProjectName:
+    Type: String
+    Description: ProjectName
+    Default: forecast
+Resources:
+  IAMResource:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub bigdata_${ProjectName}_${AppEnv}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: !Sub policy_bigdata_${ProjectName}_${AppEnv}
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:GetObject
+            - s3:ListBucket
+            - s3:PutObject
+            - s3:DeleteObject
+            Resource:
+            - !Sub arn:aws:s3:::belc-bigdata-models-dlk-${AppEnv}
+            - !Sub arn:aws:s3:::belc-bigdata-models-dlk-${AppEnv}/*
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource:
+            - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/${PrincipalProjectName}/td-bigdata-${ProjectName}-${AppEnv}:*
+          - Effect: Allow
+            Action:
+            - sns:Publish
+            Resource:
+            - !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:sns-orquestador-algoritmos-topic-${AppEnv}
+  TacticsECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+        RepositoryName: !Sub bigdata/${ProjectName}-model
+        ImageTagMutability: IMMUTABLE
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${PrincipalProjectName}/td-bigdata-${ProjectName}-${AppEnv}
+      RetentionInDays: 90

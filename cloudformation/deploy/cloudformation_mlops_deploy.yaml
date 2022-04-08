@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template to create Api and respective lambda
+Parameters:
+  AppEnv:
+    Type: String
+    Description: 'application environment (lowercase only), ex: dev, qas, prd'
+    AllowedValues:
+      - prd
+      - qas
+      - dev
+  Env:
+    Type: String
+    Description: 'application environment (uppercase only), ex: DEV, QAS, PRD'
+    AllowedValues:
+      - PRD
+      - QAS
+      - DEV
+  RedshiftHost:
+    Type: String
+    Description: Redshift Database Ip adreess
+    Default: X.X.X.X
+  RedshiftDatabaseName:
+    Type: String
+    Description: Redshift Database name
+    Default: analitico
+  RedshiftDBUser:
+    Type: String 
+    Description: Redshift Database User for Cobranzas Project
+  RedshiftEnvPort:
+    Type: String
+    Description: Redshift Database Port
+    Default: 5439
+  RedshiftDBPassword:
+    Type: String
+    Description: Redshift Database Password for Cobranzas user
+    NoEcho: true
+  ProjectName: 
+    Type: String
+    Description: ProjectName
+    Default: xxxxx
+  PrincipalProjectName:
+    Type: String
+    Description: ProjectName
+    Default: forecast
+  MLFlowHost:
+    Type: String
+    Description: MLFlow Host
+    Default: internal-alb-datalake-casetwo-qas-45252694.us-east-1.elb.amazonaws.com
+Resources:
+  ECSClusterResource: 
+    Type: AWS::ECS::Cluster
+    Properties: 
+        ClusterName: !Sub ecs-${ProjectName}-${AppEnv}
+        CapacityProviders:
+            - FARGATE
+  TaskDefinitionResource:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+        Family: !Sub td-bigdata-${ProjectName}-${AppEnv}
+        ExecutionRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole
+        RequiresCompatibilities: 
+            - FARGATE
+        NetworkMode: awsvpc
+        TaskRoleArn: !Sub arn:aws:iam::${AWS::AccountId}:role/bigdata_${ProjectName}_${AppEnv}
+        Cpu: 4096 
+        Memory: 30720
+        ContainerDefinitions:
+            - Name: !Sub ${ProjectName}Container
+              LogConfiguration:
+                LogDriver: awslogs
+                Options:
+                    awslogs-create-group: true
+                    awslogs-group: !Sub /ecs/${PrincipalProjectName}/td-bigdata-${ProjectName}-${AppEnv}
+                    awslogs-region: !Sub ${AWS::Region}
+                    awslogs-stream-prefix: ecs
+              Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${PrincipalProjectName}/${ProjectName}/training:${AppEnv}
+              Environment:
+              - Name: RS_HOST
+                Value: !Ref RedshiftHost
+              - Name: RS_DATABASE
+                Value: !Ref RedshiftDatabaseName
+              - Name: RS_USER
+                Value: !Ref RedshiftDBUser
+              - Name: RS_PORT
+                Value: !Ref RedshiftEnvPort
+              - Name: RS_PASSWORD
+                Value: !Ref RedshiftDBPassword
+              - Name: ENV_DEPLOY
+                Value: !Ref AppEnv
+              - Name: RS_ROLE
+                Value: !Sub arn:aws:iam::${AWS::AccountId}:role/RedshiftS3Role-${Env}-BIGDATA
+              - Name: ORCHESTRATOR_ARN
+                Value: !Sub arn:aws:sns:us-east-1:${AWS::AccountId}:sns-orquestador-algoritmos-topic-${AppEnv}
+              - Name: FOLDER_MODEL
+                Value: !Ref FolderModel
+              - Name: BUCKET_MODEL
+                Value: !Sub belc-bigdata-models-${AppEnv}
+              - Name: MLFLOW_HOST
+                Value: !Sub MLFlowHost
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub SNS-Datalake-${ProjectName}-${Env}
